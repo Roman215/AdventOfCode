@@ -1003,5 +1003,78 @@ namespace AdventOfCode
 
             return output;
         }
+
+        public static BigInteger Day12(int part = 2)
+        {
+            var sr = new StreamReader("Day12-Input.txt");
+            var line = sr.ReadLine();
+            BigInteger output = 0;
+            const char damagedChar = '#';
+            const char operationalChar = '.';
+            const char unknownChar = '?';
+            Dictionary<Tuple<string, string>, BigInteger> encountered = new();
+
+            Func<string, List<int>, BigInteger> countRemainingArrangements = (string x, List<int> y) => { return 0; };
+            countRemainingArrangements = (string remainingLine, List<int> remainingBlocks) =>
+            {
+                if (remainingLine.Length == 0)
+                {
+                    // Not a valid arrangement if we hit the end of the line and yet we still have more blocks to process
+                    return (remainingBlocks.Count == 0) ? new BigInteger(1) : new BigInteger(0);
+                }
+
+                if (remainingBlocks.Count == 0)
+                {
+                    // If we finished processing all the damaged block sections, we expect no more damaged blocks in the remaining line
+                    return !remainingLine.Contains(damagedChar) ? new BigInteger(1) : new BigInteger(0);
+                }
+
+                string remainingBlockStr = string.Join(',', remainingBlocks);
+                if (encountered.ContainsKey(Tuple.Create(remainingLine, remainingBlockStr)))
+                {
+                    return encountered[Tuple.Create(remainingLine, remainingBlockStr)];
+                }
+
+                BigInteger result = 0;
+
+                if (remainingLine[0] == operationalChar || remainingLine[0] == unknownChar)
+                {
+                    // Count the rest of the results where we substituted ? with a . (or this char was already a .)
+                    result += countRemainingArrangements(remainingLine[1..], remainingBlocks);
+                }
+                if (remainingLine[0] == damagedChar || remainingLine[0] == unknownChar)
+                {
+                    // If we're currently processing a potential damaged character and we see a sequence of damaged characters matching (or can match the expected count of damaged springs)
+                    if (remainingBlocks[0] <= remainingLine.Length && !remainingLine.Substring(0, remainingBlocks[0]).Contains(operationalChar)
+                        && (remainingBlocks[0] == remainingLine.Length || remainingLine[remainingBlocks[0]] != damagedChar))
+                    {
+                        // Move ahead past the block of damaged characters and move to the next remainingBlock
+                        // For example if remaining line is ####..## and remaining blocks are 4, 2 then move on to .## and remaining blocks 2
+                        result += countRemainingArrangements(remainingLine.Length > remainingBlocks[0] + 1 ? remainingLine.Substring(remainingBlocks[0] + 1) : "", remainingBlocks.Skip(1).ToList());
+                    }
+                }
+
+                encountered[Tuple.Create(remainingLine, remainingBlockStr)] = result;
+                return result;
+            };
+
+            while (line != null)
+            {
+                var grid = line.Split(" ")[0];
+                var numbers = line.Split(" ")[1].Split(",").Select(s => Convert.ToInt32(s)).ToList();
+
+                if (part == 2)
+                {
+                    grid = grid + '?' + grid + '?' + grid + '?' + grid + '?' + grid;
+                    numbers = numbers.Concat(numbers).Concat(numbers).Concat(numbers).Concat(numbers).ToList();
+                }
+
+                output += countRemainingArrangements(grid, numbers);
+
+                line = sr.ReadLine();
+            }
+
+            return output;
+        }
     }
 }

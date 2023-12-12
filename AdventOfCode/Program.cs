@@ -1,2 +1,2 @@
 ﻿// See https://aka.ms/new-console-template for more information
-Console.WriteLine(AdventOfCode.AdventOfCode.Day11(2));
+Console.WriteLine(AdventOfCode.AdventOfCode.Day12());

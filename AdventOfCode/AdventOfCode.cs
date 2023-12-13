@@ -1076,5 +1076,91 @@ namespace AdventOfCode
 
             return output;
         }
+
+        public static BigInteger Day13(int part = 2)
+        {
+            var sr = new StreamReader("Day13-Input.txt");
+            var line = sr.ReadLine();
+            BigInteger output = 0;
+            List<List<List<char>>> grids = new();
+            int currentGrid = 1;
+
+            while (line != null)
+            {
+                if (line.Length == 0)
+                {
+                    currentGrid++;
+                    line = sr.ReadLine();
+                    continue;
+                }
+
+                if (grids.Count < currentGrid)
+                {
+                    grids.Add(new());
+                }
+
+                grids[currentGrid - 1].Add(line.ToCharArray().ToList());
+
+                line = sr.ReadLine();
+            }
+            for (int i = 0; i < grids.Count; i++)
+            {
+                var grid = grids[i];
+
+                // Compare all the rows
+                for (int row1 = 0; row1 < grid.Count - 1; row1++)
+                {
+                    BigInteger mismatchedCells = 0;
+                    for (int row2 = 0; row2 < grid.Count; row2++)
+                    {
+                        var topRow = row1 - row2;
+                        var bottomRow = row1 + row2 + 1;
+                        if (topRow >= 0 && bottomRow >= 0 && topRow < bottomRow && topRow < grid.Count && bottomRow < grid.Count)
+                        {
+                            // Compare the two rows and find if all the cells match
+                            for (var col = 0; col < grid[row1].Count; col++)
+                            {
+                                if (grid[topRow][col] != grid[bottomRow][col])
+                                {
+                                    mismatchedCells++;
+                                }
+                            }
+                        }
+                    }
+                    if (mismatchedCells == (part == 2 ? 1 : 0))
+                    {
+                        output += 100 * (row1 + 1);
+                    }
+                }
+
+                // Compare all the columns
+                for (int col1 = 0; col1 < grid[0].Count - 1; col1++)
+                {
+                    BigInteger mismatchedCells = 0;
+                    for (int col2 = 0; col2 < grid.Count; col2++)
+                    {
+                        var leftCol = col1 - col2;
+                        var rightCol = col1 + col2 + 1;
+                        if (leftCol >= 0 && rightCol >= 0 && leftCol < rightCol && leftCol < grid[0].Count && rightCol < grid[0].Count)
+                        {
+                            // Compare the two columns and find if all the cells match
+                            for (var row = 0; row < grid.Count; row++)
+                            {
+                                if (grid[row][leftCol] != grid[row][rightCol])
+                                {
+                                    mismatchedCells++;
+                                }
+                            }
+                        }
+                    }
+                    if (mismatchedCells == (part == 2 ? 1 : 0))
+                    {
+                        output += col1 + 1;
+                    }
+                }
+            }
+
+            return output;
+        }
     }
 }

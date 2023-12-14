@@ -1,14 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Numerics;
-using System.Reflection.Metadata;
-using System.Runtime.CompilerServices;
-using System.Text;
+﻿using System.Numerics;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using System.Threading.Tasks.Dataflow;
-using System.Xml.Linq;
 
 namespace AdventOfCode
 {
@@ -1158,6 +1149,153 @@ namespace AdventOfCode
                         output += col1 + 1;
                     }
                 }
+            }
+
+            return output;
+        }
+
+        public static int Day14(int part = 2)
+        {
+            var sr = new StreamReader("Day14-Input.txt");
+            var line = sr.ReadLine();
+            var output = 0;
+            const char rollingRock = 'O';
+            const char stationaryRock = '#';
+            const char emptyTile = '.';
+            List<List<char>> grid = new();
+            BigInteger numCycles = 1000000000;
+
+            var tiltNorth = () =>
+            {
+                var northLoad = 0;
+                for (int i = 0; i < grid.Count; i++)
+                {
+                    for (int j = 0; j < grid[i].Count; j++)
+                    {
+                        if (grid[i][j] == rollingRock)
+                        {
+                            var newNorth = i - 1;
+                            while (newNorth >= 0 && grid[newNorth][j] == emptyTile)
+                            {
+                                grid[newNorth][j] = rollingRock;
+                                grid[newNorth + 1][j] = emptyTile;
+                                newNorth--;
+                            }
+                            northLoad += grid.Count - newNorth - 1;
+                        }
+                    }
+                }
+                return northLoad;
+            };
+
+            var tiltWest = () =>
+            {
+                for (int j = 0; j < grid[0].Count; j++)
+                {
+                    for (int i = 0; i < grid.Count; i++)
+                    {
+                        if (grid[i][j] == rollingRock)
+                        {
+                            var newWest = j - 1;
+                            while (newWest >= 0 && grid[i][newWest] == emptyTile)
+                            {
+                                grid[i][newWest] = rollingRock;
+                                grid[i][newWest + 1] = emptyTile;
+                                newWest--;
+                            }
+                        }
+                    }
+                }
+            };
+
+            var tiltSouth = () =>
+            {
+                for (int i = grid.Count - 1; i >= 0; i--)
+                {
+                    for (int j = 0; j < grid[i].Count; j++)
+                    {
+                        if (grid[i][j] == rollingRock)
+                        {
+                            var newSouth = i + 1;
+                            while (newSouth <= grid[i].Count - 1 && grid[newSouth][j] == emptyTile)
+                            {
+                                grid[newSouth][j] = rollingRock;
+                                grid[newSouth - 1][j] = emptyTile;
+                                newSouth++;
+                            }
+                        }
+                    }
+                }
+            };
+
+            var tiltEast = () =>
+            {
+                var northLoad = 0;
+                for (int j = grid[0].Count - 1; j >= 0; j--)
+                {
+                    for (int i = 0; i < grid.Count; i++)
+                    {
+                        if (grid[i][j] == rollingRock)
+                        {
+                            var newEast = j + 1;
+                            while (newEast <= grid[i].Count - 1 && grid[i][newEast] == emptyTile)
+                            {
+                                grid[i][newEast] = rollingRock;
+                                grid[i][newEast - 1] = emptyTile;
+                                newEast++;
+                            }
+                            northLoad += grid.Count - i;
+                        }
+                    }
+                }
+                return northLoad;
+            };
+
+            var performCycle = () =>
+            {
+                tiltNorth();
+                tiltWest();
+                tiltSouth();
+                return tiltEast();
+            };
+
+            while (line != null)
+            {
+                grid.Add(line.ToCharArray().ToList());
+
+                line = sr.ReadLine();
+            }
+
+            // For part 1 we just want to tilt north one time and return the output
+            if (part != 2)
+            {
+                return tiltNorth();
+            }
+
+            BigInteger currentCycles = 0;
+            // Dictionary of all grids we encountered already. Value is how many cycles we encountered it after. Used to detect when the grids are caught in a loop of cycles
+            Dictionary<string, BigInteger> encounteredGrids = new();
+            while (currentCycles < numCycles)
+            {
+                currentCycles++;
+                output = performCycle();
+
+                string gridStr = "";
+                for (int i = 0; i < grid.Count; i++)
+                {
+                    gridStr += string.Join("", grid[i]);
+                }
+
+                // If we previously encountered this grid before, then we're caught in a loop which is the size of the difference between this current cycle and the cycle we last saw that grid on
+                // So we can skip ahead massively by moving past all of the loops then finishing up what remains near the end
+                if (encounteredGrids.ContainsKey(gridStr))
+                {
+                    var loopLength = currentCycles - encounteredGrids[gridStr];
+                    var numLoopsToPerform = (numCycles - currentCycles) / loopLength;
+                    currentCycles += numLoopsToPerform * loopLength;
+                }
+
+                encounteredGrids[gridStr] = currentCycles;
             }
 
             return output;

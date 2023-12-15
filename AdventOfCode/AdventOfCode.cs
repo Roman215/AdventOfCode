@@ -1,4 +1,5 @@
-﻿using System.Numerics;
+﻿using System.Collections.Specialized;
+using System.Numerics;
 using System.Text.RegularExpressions;
 
 namespace AdventOfCode
@@ -1296,6 +1297,72 @@ namespace AdventOfCode
                 }
 
                 encounteredGrids[gridStr] = currentCycles;
+            }
+
+            return output;
+        }
+
+        public static BigInteger Day15(int part = 2)
+        {
+            var sr = new StreamReader("Day15-Input.txt");
+            var line = sr.ReadLine();
+            BigInteger output = 0;
+            List<string> codes = new();
+            OrderedDictionary[] boxes = new OrderedDictionary[256];
+            for (int i = 0; i < boxes.Length; i++)
+            {
+                boxes[i] = new();
+            }
+
+            while (line != null)
+            {
+                codes = line.Split(",").ToList();
+
+                line = sr.ReadLine();
+            }
+
+            for (int j = 0; j < codes.Count; j++)
+            {
+                var code = codes[j];
+                BigInteger currentValue = 0;
+                for (int i = 0; i < code.Length; i++)
+                {
+                    if (part != 2 || (code[i] != '=' && code[i] != '-'))
+                    {
+                        currentValue += code[i];
+                        currentValue *= 17;
+                        currentValue %= 256;
+                    }
+                    else if (code[i] == '=')
+                    {
+                        var label = code.Split("=")[0];
+                        boxes[(int)currentValue][label] = code;
+                        break;
+                    }
+                    else if (code[i] == '-')
+                    {
+                        var label = code.Split("-")[0];
+                        boxes[(int)currentValue].Remove(label);
+                        break;
+                    }
+                }
+
+                if (part != 2)
+                {
+                    output += currentValue;
+                }
+            }
+
+            if (part == 2)
+            {
+                for (int i = 0; i < boxes.Length; i++)
+                {
+                    for (int j = 0; j < boxes[i].Count; j++)
+                    {
+                        BigInteger focalLength = Convert.ToInt32(boxes[i][j].ToString().Split("=")[1]);
+                        output += (i + 1) * (j + 1) * focalLength;
+                    }
+                }
             }
 
             return output;

@@ -16,6 +16,14 @@ namespace AdventOfCode
             return b == 0 ? a : GCD(b, a % b);
         }
 
+        public enum GridDirection
+        {
+            North,
+            South,
+            East,
+            West,
+        }
+
         public static int Day1(int part = 2)
         {
             var sr = new StreamReader("Day1-Input.txt");
@@ -1366,6 +1374,187 @@ namespace AdventOfCode
             }
 
             return output;
+        }
+
+        public class LightBeam
+        {
+            public GridDirection Direction { get; set; } = GridDirection.East;
+            public Tuple<int, int> Position { get; set; } = Tuple.Create(0, 0);
+
+            public LightBeam(Tuple<int, int> position, GridDirection direction)
+            {
+                Position = position;
+                Direction = direction;
+            }
+        }
+
+        public static BigInteger Day16(int part = 2)
+        {
+            var sr = new StreamReader("Day16-Input.txt");
+            var line = sr.ReadLine();
+            List<List<char>> grid = new();
+            const char energized = '#';
+            const char verticalSplitter = '|';
+            const char horizontalSplitter = '-';
+
+            while (line != null)
+            {
+                grid.Add(line.ToCharArray().ToList());
+
+                line = sr.ReadLine();
+            }
+
+            var calculateGridEnergy = (Tuple<int, int> startingPosition, GridDirection startingDirection) =>
+            {
+                List<List<char>> energizedGrid = new();
+                BigInteger energizedCells = 0;
+                for (int i = 0; i < grid.Count; i++)
+                {
+                    energizedGrid.Add(grid[i].ToArray().ToList());
+                }
+
+                List<LightBeam> lightBeams = new()
+                {
+                    new LightBeam(startingPosition, startingDirection),
+                };
+
+                HashSet<Tuple<int, int, GridDirection>> previousLightBeams = new();
+
+                var travelAllLightBeams = () =>
+                {
+                    for (var lightIndex = 0; lightIndex < lightBeams.Count; lightIndex++)
+                    {
+                        var lightBeam = lightBeams[lightIndex];
+                        var i = lightBeam.Position.Item1;
+                        var j = lightBeam.Position.Item2;
+                        if (i < 0 || j < 0 || i >= grid.Count || j >= grid[i].Count || previousLightBeams.Contains(Tuple.Create(lightBeam.Position.Item1, lightBeam.Position.Item2, lightBeam.Direction)))
+                        {
+                            lightBeams.Remove(lightBeam);
+                            lightIndex--;
+                            continue;
+                        }
+
+                        previousLightBeams.Add(Tuple.Create(lightBeam.Position.Item1, lightBeam.Position.Item2, lightBeam.Direction));
+                        energizedGrid[i][j] = energized;
+                        if (lightBeam.Direction == GridDirection.North)
+                        {
+                            if (grid[i][j] == horizontalSplitter)
+                            {
+                                lightBeam.Direction = GridDirection.West;
+                                lightBeam.Position = Tuple.Create(i, j - 1);
+                                lightBeams.Add(new LightBeam(Tuple.Create(i, j + 1), GridDirection.East));
+                            }
+                            else if (grid[i][j] == '\\' || grid[i][j] == '/')
+                            {
+                                lightBeam.Direction = grid[i][j] == '\\' ? GridDirection.West : GridDirection.East;
+                                lightBeam.Position = Tuple.Create(i, grid[i][j] == '\\' ? j - 1 : j + 1);
+                            }
+                            else
+                            {
+                                lightBeam.Position = Tuple.Create(i - 1, j);
+                            }
+                        }
+                        else if (lightBeam.Direction == GridDirection.South)
+                        {
+                            if (grid[i][j] == horizontalSplitter)
+                            {
+                                lightBeam.Direction = GridDirection.West;
+                                lightBeam.Position = Tuple.Create(i, j - 1);
+                                lightBeams.Add(new LightBeam(Tuple.Create(i, j + 1), GridDirection.East));
+                            }
+                            else if (grid[i][j] == '\\' || grid[i][j] == '/')
+                            {
+                                lightBeam.Direction = grid[i][j] == '\\' ? GridDirection.East : GridDirection.West;
+                                lightBeam.Position = Tuple.Create(i, grid[i][j] == '\\' ? j + 1 : j - 1);
+                            }
+                            else
+                            {
+                                lightBeam.Position = Tuple.Create(i + 1, j);
+                            }
+                        }
+                        else if (lightBeam.Direction == GridDirection.West)
+                        {
+                            if (grid[i][j] == verticalSplitter)
+                            {
+                                lightBeam.Direction = GridDirection.North;
+                                lightBeam.Position = Tuple.Create(i - 1, j);
+                                lightBeams.Add(new LightBeam(Tuple.Create(i + 1, j), GridDirection.South));
+                            }
+                            else if (grid[i][j] == '\\' || grid[i][j] == '/')
+                            {
+                                lightBeam.Direction = grid[i][j] == '\\' ? GridDirection.North : GridDirection.South;
+                                lightBeam.Position = Tuple.Create(grid[i][j] == '\\' ? i - 1 : i + 1, j);
+                            }
+                            else
+                            {
+                                lightBeam.Position = Tuple.Create(i, j - 1);
+                            }
+                        }
+                        else if (lightBeam.Direction == GridDirection.East)
+                        {
+                            if (grid[i][j] == verticalSplitter)
+                            {
+                                lightBeam.Direction = GridDirection.North;
+                                lightBeam.Position = Tuple.Create(i - 1, j);
+                                lightBeams.Add(new LightBeam(Tuple.Create(i + 1, j), GridDirection.South));
+                            }
+                            else if (grid[i][j] == '\\' || grid[i][j] == '/')
+                            {
+                                lightBeam.Direction = grid[i][j] == '\\' ? GridDirection.South : GridDirection.North;
+                                lightBeam.Position = Tuple.Create(grid[i][j] == '\\' ? i + 1 : i - 1, j);
+                            }
+                            else
+                            {
+                                lightBeam.Position = Tuple.Create(i, j + 1);
+                            }
+                        }
+                    }
+                };
+
+                while (lightBeams.Count > 0)
+                {
+                    travelAllLightBeams();
+                }
+
+                for (int i = 0; i < energizedGrid.Count; i++)
+                {
+                    for (int j = 0; j < energizedGrid[i].Count; j++)
+                    {
+                        if (energizedGrid[i][j] == energized)
+                        {
+                            energizedCells++;
+                        }
+                    }
+                }
+
+                return energizedCells;
+            };
+
+            if (part != 2)
+            {
+                return calculateGridEnergy(Tuple.Create(0, 0), GridDirection.East);
+            }
+
+            BigInteger maximumGridEnergy = 0;
+            for (int i = 0; i < grid.Count; i++)
+            {
+                var gridEnergyStartingWest = calculateGridEnergy(Tuple.Create(i, 0), GridDirection.East);
+                var gridEnergyStartingEast = calculateGridEnergy(Tuple.Create(i, grid[i].Count - 1), GridDirection.West);
+
+                maximumGridEnergy = maximumGridEnergy >= gridEnergyStartingWest ? maximumGridEnergy : gridEnergyStartingWest;
+                maximumGridEnergy = maximumGridEnergy >= gridEnergyStartingEast ? maximumGridEnergy : gridEnergyStartingEast;
+            }
+
+            for (int j = 0; j < grid[0].Count; j++)
+            {
+                var gridEnergyStartingNorth = calculateGridEnergy(Tuple.Create(0, j), GridDirection.South);
+                var gridEnergyStartingSouth = calculateGridEnergy(Tuple.Create(grid.Count - 1, j), GridDirection.North);
+
+                maximumGridEnergy = maximumGridEnergy >= gridEnergyStartingNorth ? maximumGridEnergy : gridEnergyStartingNorth;
+                maximumGridEnergy = maximumGridEnergy >= gridEnergyStartingSouth ? maximumGridEnergy : gridEnergyStartingSouth;
+            }
+
+            return maximumGridEnergy;
         }
     }
 }

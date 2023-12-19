@@ -1,4 +1,5 @@
 ﻿using System.Collections.Specialized;
+using System.Data;
 using System.Numerics;
 using System.Text.RegularExpressions;
 
@@ -18,17 +19,18 @@ namespace AdventOfCode
 
         public enum GridDirection
         {
-            North,
+            None,
             South,
             East,
+            North,
             West,
         }
 
-        public static int Day1(int part = 2)
+        public static BigInteger Day1(int part = 2)
         {
             var sr = new StreamReader("Day1-Input.txt");
             var line = sr.ReadLine();
-            var output = 0;
+            BigInteger output = 0;
 
             while (line != null)
             {
@@ -1555,6 +1557,118 @@ namespace AdventOfCode
             }
 
             return maximumGridEnergy;
+        }
+
+        public static BigInteger Day17(int part = 2)
+        {
+            var sr = new StreamReader("Day17-Input.txt");
+            var line = sr.ReadLine();
+            BigInteger output = new BigInteger(1e20);
+            var grid = new List<List<char>>();
+
+            // Tuple is ordered by current row, current column, direction, how much the direction repeated, and the current total heat loss
+            var crucibles = new PriorityQueue<Tuple<int, int, GridDirection, int, BigInteger>, BigInteger>();
+
+            // Tuple is same as above except mapping first four to total heat loss
+            var encounteredCrucibles = new Dictionary<Tuple<int, int, GridDirection, int>, BigInteger>();
+
+            while (line != null)
+            {
+                grid.Add(line.ToCharArray().ToList());
+
+                line = sr.ReadLine();
+            }
+
+            // Add the starting point to process
+            crucibles.Enqueue(Tuple.Create(0, 0, GridDirection.None, -1, BigInteger.Zero), 0);
+
+            while (crucibles.Count > 0)
+            {
+                var crucible = crucibles.Dequeue();
+                var i = crucible.Item1;
+                var j = crucible.Item2;
+                var direction = crucible.Item3;
+                var directionRepeats = crucible.Item4;
+                var currentHeatLoss = crucible.Item5;
+                var crucibleKey = Tuple.Create(i, j, direction, directionRepeats);
+                if (encounteredCrucibles.ContainsKey(crucibleKey))
+                {
+                    continue;
+                }
+                encounteredCrucibles[crucibleKey] = crucible.Item5;
+
+                // Travel in each direction as long as the movements are valid
+                foreach (GridDirection newDirection in Enum.GetValues(typeof(GridDirection)))
+                {
+                    if (newDirection == GridDirection.None) continue;
+                    var newRow = i + (newDirection == GridDirection.North ? -1 : newDirection == GridDirection.South ? 1 : 0);
+                    var newColumn = j + (newDirection == GridDirection.West ? -1 : newDirection == GridDirection.East ? 1 : 0);
+                    var newDirectionRepeats = (newDirection == direction) ? directionRepeats + 1 : 1;
+                    var invalidDirectionReverse = (direction == GridDirection.North && newDirection == GridDirection.South)
+                        || (direction == GridDirection.South && newDirection == GridDirection.North)
+                        || (direction == GridDirection.West && newDirection == GridDirection.East)
+                        || (direction == GridDirection.East && newDirection == GridDirection.West);
+                    var invalidDirectionTooManyRepeats = newDirectionRepeats > (part == 2 ? 10 : 3);
+                    var invalidDirectionMustStaySameDirection = part == 2 && (direction != newDirection && directionRepeats < 4 && directionRepeats != -1);
+                    if (newRow < 0 || newRow >= grid.Count || newColumn < 0 || newColumn >= grid[newRow].Count || invalidDirectionReverse || invalidDirectionTooManyRepeats || invalidDirectionMustStaySameDirection)
+                    {
+                        continue;
+                    }
+                    var newHeatLoss = currentHeatLoss + grid[newRow][newColumn] - '0';
+                    crucibles.Enqueue(Tuple.Create(newRow, newColumn, newDirection, newDirectionRepeats, newHeatLoss), newHeatLoss);
+                    if (newRow == grid.Count - 1 && newColumn == grid[0].Count - 1 && newHeatLoss < output)
+                    {
+                        output = newHeatLoss;
+                    }
+                }
+            }
+
+            return output;
+        }
+
+        public static BigInteger Day18(int part = 2)
+        {
+            var sr = new StreamReader("Day18-Input.txt");
+            var line = sr.ReadLine();
+            BigInteger row = 0;
+            BigInteger column = 0;
+            BigInteger perimeter = 0;
+            List<Tuple<BigInteger, BigInteger>> points = new()
+            {
+                Tuple.Create(BigInteger.Zero, BigInteger.Zero),
+            };
+
+            while (line != null)
+            {
+                char direction = line.Split(" ")[0][0];
+                int numTiles = Convert.ToInt32(line.Split(" ")[1]);
+
+                if (part == 2)
+                {
+                    numTiles = Convert.ToInt32("0x" + line.Split(" ")[2].Substring(2, 5), 16);
+                    var hexDir = Convert.ToInt32("0x" + line.Split(" ")[2].Substring(7, 1), 16);
+                    direction = hexDir == 0 ? 'R' : hexDir == 1 ? 'D' : hexDir == 2 ? 'L' : hexDir == 3 ? 'U' : '\0';
+                }
+
+                perimeter += numTiles;
+                row = row + numTiles * (direction == 'U' ? -1 : direction == 'D' ? 1 : 0);
+                column = column + numTiles * (direction == 'L' ? -1 : direction == 'R' ? 1 : 0);
+                points.Add(Tuple.Create(row, column));
+
+                line = sr.ReadLine();
+            }
+
+            // This solution uses the shoelace theorem to calculate the area of the trench
+            BigInteger area = 0;
+            for (int i = 0; i < points.Count; i++)
+            {
+                var behind = i - 1 >= 0 ? i - 1 : i - 1 + points.Count();
+                area += points[i].Item1 * (points[behind].Item2 - points[(i + 1) % points.Count].Item2);
+            }
+
+            area = BigInteger.Abs(area) / 2;
+
+            return area - (perimeter / 2) + 1 + perimeter;
         }
     }
 }

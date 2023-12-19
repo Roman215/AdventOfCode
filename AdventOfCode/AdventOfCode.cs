@@ -1670,5 +1670,198 @@ namespace AdventOfCode
 
             return area - (perimeter / 2) + 1 + perimeter;
         }
+
+        public static BigInteger Day19(int part = 2)
+        {
+            var sr = new StreamReader("Day19-Input.txt");
+            var line = sr.ReadLine();
+            BigInteger output = 0;
+            // Tuple is category (xmas), operator (> or <), rating number, and new rule name (or A/R)
+            Dictionary<string, List<Tuple<char, char, BigInteger, string>>> workflow = new();
+            bool parsingWorkflows = true;
+
+            // Recursive function to handle part 1's logic
+            Func<string, Dictionary<char, BigInteger>, bool> processItem = (string ruleName, Dictionary<char, BigInteger> item) => { return false; };
+            processItem = (string ruleName, Dictionary<char, BigInteger> item) =>
+            {
+                if (ruleName == "R")
+                {
+                    // Reject
+                    return false;
+                }
+                if (ruleName == "A")
+                {
+                    // Accept
+                    return true;
+                }
+
+                var rules = workflow[ruleName];
+
+                for (var i = 0; i < rules.Count; i++)
+                {
+                    var rule = rules[i];
+                    if (i == rules.Count - 1)
+                    {
+                        return processItem(rule.Item4, item);
+                    }
+
+                    var category = rule.Item1;
+                    var oper = rule.Item2;
+                    var ratingNum = rule.Item3;
+                    var newRuleName = rule.Item4;
+
+                    if ((oper == '>' && item[category] > ratingNum) || (oper == '<' && item[category] < ratingNum))
+                    {
+                        return processItem(newRuleName, item);
+                    }
+                }
+
+                return false;
+            };
+
+            // Recursive function to handle part 2's logic
+            Func<string, Dictionary<char, Tuple<BigInteger, BigInteger>>, BigInteger> processItemRanges = (string ruleName, Dictionary<char, Tuple<BigInteger, BigInteger>> itemRange) => { return 0; };
+            processItemRanges = (string ruleName, Dictionary<char, Tuple<BigInteger, BigInteger>> itemRange) =>
+            {
+                BigInteger result = 0;
+
+                if (ruleName == "R")
+                {
+                    return 0;
+                }
+
+                if (ruleName == "A")
+                {
+                    // Return all the permutations of all the xmas variations within the item's range
+                    result = 1;
+                    foreach (var range in itemRange.Values)
+                    {
+                        result *= range.Item2 - range.Item1 + 1;
+                    }
+                    return result;
+                }
+
+                var rules = workflow[ruleName];
+
+                for (var i = 0; i < rules.Count; i++)
+                {
+                    var rule = rules[i];
+                    if (i == rules.Count - 1)
+                    {
+                        result += processItemRanges(rule.Item4, itemRange);
+                        break;
+                    }
+
+                    var category = rule.Item1;
+                    var oper = rule.Item2;
+                    var ratingNum = rule.Item3;
+                    var newRuleName = rule.Item4;
+                    var rangeMin = itemRange[category].Item1;
+                    var rangeMax = itemRange[category].Item2;
+                    Tuple<BigInteger, BigInteger> rangeForNewRule = Tuple.Create(BigInteger.Zero, BigInteger.Zero);
+                    Tuple<BigInteger, BigInteger> rangeForThisRule = Tuple.Create(BigInteger.Zero, BigInteger.Zero);
+
+                    // If part of the range matches the new rule, split the range into the portion that matches the new rule and the portion that still matches this current rule
+                    if (oper == '<')
+                    {
+                        rangeForNewRule = Tuple.Create(rangeMin, ratingNum - 1);
+                        rangeForThisRule = Tuple.Create(ratingNum, rangeMax);
+                    }
+                    else if (oper == '>')
+                    {
+                        rangeForNewRule = Tuple.Create(ratingNum + 1, rangeMax);
+                        rangeForThisRule = Tuple.Create(rangeMin, ratingNum);
+                    }
+                    if (rangeForNewRule.Item1 <= rangeForNewRule.Item2)
+                    {
+                        var copyOfItemRange = itemRange.ToDictionary(entry => entry.Key, entry => entry.Value);
+                        copyOfItemRange[category] = rangeForNewRule;
+                        result += processItemRanges(newRuleName, copyOfItemRange);
+                    }
+                    if (rangeForThisRule.Item1 <= rangeForThisRule.Item2)
+                    {
+                        itemRange[category] = rangeForThisRule;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+
+                return result;
+            };
+
+            while (line != null)
+            {
+                if (line.Length == 0)
+                {
+                    parsingWorkflows = false;
+                    line = sr.ReadLine();
+                    continue;
+                }
+
+                if (parsingWorkflows)
+                {
+                    var ruleName = line.Split("{")[0];
+                    var rules = line.Split("{")[1].Trim('}').Split(",").ToList();
+                    if (!workflow.ContainsKey(ruleName))
+                    {
+                        workflow[ruleName] = new();
+                    }
+
+                    for (int i = 0; i < rules.Count; i++)
+                    {
+                        var rule = rules[i];
+                        if (i == rules.Count - 1)
+                        {
+                            workflow[ruleName].Add(Tuple.Create('\0', '\0', BigInteger.Zero, rule));
+                            continue;
+                        }
+                        var category = rule[0];
+                        var oper = rule[1];
+                        var num = new BigInteger(Convert.ToInt32(rule.Split(":")[0].Substring(2)));
+                        var newWorkflow = rule.Split(":")[1];
+                        workflow[ruleName].Add(Tuple.Create(category, oper, num, newWorkflow));
+                    }
+                }
+                else if (part != 2)
+                {
+                    var itemStrings = line.Trim('{').Trim('}').Split(",");
+                    Dictionary<char, BigInteger> item = new();
+                    for (int i = 0; i < itemStrings.Length; i++)
+                    {
+                        var itemString = itemStrings[i];
+                        var category = itemString[0];
+                        BigInteger ratingNum = Convert.ToInt32(itemString.Split("=")[1]);
+                        item[category] = ratingNum;
+                    }
+
+                    if (processItem("in", item))
+                    {
+                        foreach (var ratingNum in item.Values)
+                        {
+                            output += ratingNum;
+                        }
+                    }
+                }
+                else
+                {
+                    Dictionary<char, Tuple<BigInteger, BigInteger>> itemRanges = new();
+                    var min = new BigInteger(1);
+                    var max = new BigInteger(4000);
+                    itemRanges['x'] = Tuple.Create(min, max);
+                    itemRanges['m'] = Tuple.Create(min, max);
+                    itemRanges['a'] = Tuple.Create(min, max);
+                    itemRanges['s'] = Tuple.Create(min, max);
+                    output += processItemRanges("in", itemRanges);
+
+                    break;
+                }
+
+                line = sr.ReadLine();
+            }
+
+            return output;
+        }
     }
 }

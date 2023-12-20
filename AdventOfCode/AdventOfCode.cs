@@ -1863,5 +1863,174 @@ namespace AdventOfCode
 
             return output;
         }
+
+        public static BigInteger Day20(int part = 2)
+        {
+            var sr = new StreamReader("Day20-Input.txt");
+            var line = sr.ReadLine();
+            const char flipFlop = '%';
+            const char conjunction = '&';
+            const string lowPulse = "low";
+            const string highPulse = "high";
+            BigInteger lowPulses = 0;
+            BigInteger highPulses = 0;
+            BigInteger buttonPresses = 0;
+            BigInteger part2Output = 0;
+
+            // Key is module name, value is Tuple ordered by module name, module type (% or &), module memory (dictionary is needed for conjunctions, key is source module name, value is either on/off or most recent pulse type), and a list of all modules it outputs to
+            var modules = new Dictionary<string, Tuple<string, char, Dictionary<string, string>, List<string>>>();
+
+            // Tuple is source module, destination module, and pulse type (low, high)
+            var pulses = new Queue<Tuple<string, string, string>>();
+
+            var broadcasterTargets = new List<string>();
+
+            while (line != null)
+            {
+                var lineSourceToDestinations = line.Split(" -> ");
+                var sourceModuleAndType = lineSourceToDestinations[0];
+                var destinationModules = lineSourceToDestinations[1].Split(", ");
+
+                if (lineSourceToDestinations[0].Contains("broadcaster"))
+                {
+                    broadcasterTargets = destinationModules.ToList();
+
+                    line = sr.ReadLine();
+                    continue;
+                }
+                var sourceModuleType = sourceModuleAndType[0];
+                var sourceModuleName = sourceModuleAndType.Substring(1);
+                var sourceModuleMemory = new Dictionary<string, string>();
+
+                if (sourceModuleType == flipFlop)
+                {
+                    // Flip flops are initially off
+                    sourceModuleMemory[sourceModuleName] = "off";
+                }
+
+                modules[sourceModuleName] = Tuple.Create(sourceModuleName, sourceModuleType, sourceModuleMemory, destinationModules.ToList());
+
+                line = sr.ReadLine();
+            }
+
+            // Initialize all the conjuction modules who have an input to a default of low pulse
+            foreach (var module in modules)
+            {
+                var moduleName = module.Key;
+                var destinationModules = module.Value.Item4;
+                for (int i = 0; i < destinationModules.Count; i++)
+                {
+                    var destinationModule = destinationModules[i];
+                    if (modules.ContainsKey(destinationModule) && modules[destinationModule].Item2 == conjunction)
+                    {
+                        var destModule = modules[destinationModule];
+                        var destinationModuleMemory = destModule.Item3;
+                        destinationModuleMemory[moduleName] = lowPulse;
+                        modules[destinationModule] = Tuple.Create(destModule.Item1, destModule.Item2, destinationModuleMemory, destModule.Item4);
+                    }
+                }
+            }
+
+            // rx is fed into by a conjunction which means that in order for it to receive a low pulse, it needs ALL of the connections to be sending a high pulse
+            // Which means that you have a bunch of cycles where each of those connections receive a high pulse and you need all of them to align
+            // Which is the same type of problem as Day8 part 2 where you find the length of all those cycles and find the LCM.
+            // Source to machine power is the module that calls into rx. For example if we had vd -> rx as a rule then vd is the source
+            var sourceToMachinePower = modules.Values.Where(x => x.Item4.Contains("rx")).First().Item1;
+            var cycles = new Dictionary<string, BigInteger>();
+            var numOfConcurrentCycles = modules.Values.Where(x => x.Item4.Contains(sourceToMachinePower)).Count();
+
+            while (true)
+            {
+                buttonPresses++;
+                if ((part != 2 && buttonPresses > 1000) || part2Output > 0)
+                {
+                    break;
+                }
+
+                lowPulses++;
+                foreach (var broadcasterTarget in broadcasterTargets)
+                {
+                    pulses.Enqueue(Tuple.Create("broadcaster", broadcasterTarget, lowPulse));
+                }
+
+                while (pulses.Count > 0)
+                {
+                    var pulse = pulses.Dequeue();
+                    var sourceModuleName = pulse.Item1;
+                    var destinationModuleName = pulse.Item2;
+                    var pulseType = pulse.Item3;
+
+                    lowPulses += pulseType == lowPulse ? 1 : 0;
+                    highPulses += pulseType == highPulse ? 1 : 0;
+
+                    if (!modules.ContainsKey(destinationModuleName))
+                    {
+                        continue;
+                    }
+
+                    var destinationModule = modules[destinationModuleName];
+                    var destinationModuleType = destinationModule.Item2;
+                    var destinationModuleMemory = destinationModule.Item3;
+                    var destinationModuleDestinations = destinationModule.Item4;
+                    string newMemoryValue;
+                    string newPulseType = "";
+                    bool sendNewPulses = false;
+
+                    if (destinationModuleName == sourceToMachinePower && pulseType == highPulse)
+                    {
+                        if (!cycles.ContainsKey(sourceModuleName))
+                        {
+                            cycles[sourceModuleName] = buttonPresses;
+                        }
+
+                        if (cycles.Count == numOfConcurrentCycles)
+                        {
+                            part2Output = LCM(cycles.Values.ToArray());
+                            break;
+                        }
+                    }
+
+                    if (destinationModuleType == flipFlop && pulseType == lowPulse)
+                    {
+                        newMemoryValue = destinationModuleMemory[destinationModuleName] == "off" ? "on" : "off";
+                        destinationModuleMemory[destinationModuleName] = newMemoryValue;
+                        modules[destinationModuleName] = Tuple.Create(destinationModule.Item1, destinationModule.Item2, destinationModuleMemory, destinationModule.Item4);
+                        newPulseType = newMemoryValue == "on" ? highPulse : lowPulse;
+                        sendNewPulses = true;
+                    }
+                    else if (destinationModuleType == conjunction)
+                    {
+                        // Conjunction modules remember the most recent pulse from its source, so set its memory from the source to this pulse
+                        newMemoryValue = pulseType;
+                        destinationModuleMemory[sourceModuleName] = newMemoryValue;
+
+                        modules[destinationModuleName] = Tuple.Create(destinationModule.Item1, destinationModule.Item2, destinationModuleMemory, destinationModule.Item4);
+
+                        // If the conjunction module remembered high pulses for all inputs then it sends a low pulse, otherwise it sends a high pulse
+                        newPulseType = lowPulse;
+                        foreach (var destinationModuleMemoryValue in destinationModuleMemory.Values)
+                        {
+                            if (destinationModuleMemoryValue == lowPulse)
+                            {
+                                newPulseType = highPulse;
+                                break;
+                            }
+                        }
+                        sendNewPulses = true;
+                    }
+
+                    if (sendNewPulses)
+                    {
+                        // Send the new pulse to all the destinations
+                        foreach (var destinationModuleDestination in destinationModuleDestinations)
+                        {
+                            pulses.Enqueue(Tuple.Create(destinationModuleName, destinationModuleDestination, newPulseType));
+                        }
+                    }
+                }
+            }
+
+            return part == 2 ? part2Output : lowPulses * highPulses;
+        }
     }
 }

@@ -2105,5 +2105,148 @@ namespace AdventOfCode
 
             return validFinalSteps.Count;
         }
+
+        public static BigInteger Day22(int part = 2)
+        {
+            var sr = new StreamReader("Day22-Input.txt");
+            var line = sr.ReadLine();
+            BigInteger part1Output = 0;
+            BigInteger part2Output = 0;
+            // Tuple is 6 values, first three are x,y,z values of one end, second three are x,y,z values of the other end
+            var bricks = new List<Tuple<int, int, int, int, int, int>>();
+
+            // Checks if two bricks overlap each other in the (x,y) coordinates. If true it means either brickA can support brickB or vice versa
+            var bricksOverlapHorizontally = (Tuple<int, int, int, int, int, int> brickA, Tuple<int, int, int, int, int, int> brickB) =>
+            {
+                if (Math.Max(brickA.Item1, brickB.Item1) <= Math.Min(brickA.Item4, brickB.Item4) && Math.Max(brickA.Item2, brickB.Item2) <= Math.Min(brickA.Item5, brickB.Item5))
+                {
+                    return true;
+                }
+
+                return false;
+            };
+
+            while (line != null)
+            {
+                var startXYZ = line.Split("~")[0].Split(",").Select(x => Convert.ToInt32(x)).ToList();
+                var endXYZ = line.Split("~")[1].Split(",").Select(x => Convert.ToInt32(x)).ToList();
+                bricks.Add(Tuple.Create(startXYZ[0], startXYZ[1], startXYZ[2], endXYZ[0], endXYZ[1], endXYZ[2]));
+
+                line = sr.ReadLine();
+            }
+
+            // Sort the bricks by their Z value so that we process the ones closer to the ground first so that we can make them fall first
+            bricks.Sort((a, b) => a.Item3 - b.Item3);
+
+            // Some bricks haven't finished falling to the ground yet. Perform the act of making all the bricks finish falling
+            for (int i = 0; i < bricks.Count; i++)
+            {
+                var brickA = bricks[i];
+
+                // newBrickHeight indicates where the brick will fall to. If it winds up being 1 then it lands on the ground as nothing was in its way to keep falling
+                int newBrickHeight = 1;
+
+                // Since bricks are sorted by height, we only need to check the bricks that come before this one because a brick can only crash into one that's lower to the ground
+                for (int j = i - 1; j >= 0; j--)
+                {
+                    var brickB = bricks[j];
+                    if (bricksOverlapHorizontally(brickA, brickB))
+                    {
+                        // If brickB overlaps brickA, brickA can't fall further than brickB's max height so check all other blocks and find the furthest blockA can fall before it either crashes into the ground or another block
+                        newBrickHeight = Math.Max(newBrickHeight, brickB.Item6 + 1);
+                    }
+                }
+
+                // Move blockA to its new height after falling as far as it can
+                bricks[i] = Tuple.Create(brickA.Item1, brickA.Item2, newBrickHeight, brickA.Item4, brickA.Item5, brickA.Item6 - brickA.Item3 + newBrickHeight);
+            }
+
+            // Key is a tuple for a brick, value is a set of all bricks that that brick supports
+            Dictionary<Tuple<int, int, int, int, int, int>, HashSet<Tuple<int, int, int, int, int, int>>> brickSupports = new();
+            // Key is a tuple for a brick, value is a set of all bricks that that brick is supported by
+            Dictionary<Tuple<int, int, int, int, int, int>, HashSet<Tuple<int, int, int, int, int, int>>> brickSupportedBy = new();
+
+            for (int i = 0; i < bricks.Count; i++)
+            {
+                var higherBrick = bricks[i];
+                if (!brickSupports.ContainsKey(higherBrick))
+                {
+                    brickSupports[higherBrick] = new();
+                }
+                if (!brickSupportedBy.ContainsKey(higherBrick))
+                {
+                    brickSupportedBy[higherBrick] = new();
+                }
+                for (int j = i - 1; j >= 0; j--)
+                {
+                    var lowerBrick = bricks[j];
+
+                    // If higherBrick is directly sitting on top of lower brick then add higherBrick to the list of blocks supported by lowerBrick
+                    if (bricksOverlapHorizontally(higherBrick, lowerBrick) && higherBrick.Item3 == lowerBrick.Item6 + 1)
+                    {
+                        if (!brickSupports.ContainsKey(lowerBrick))
+                        {
+                            brickSupports[lowerBrick] = new();
+                        }
+                        if (!brickSupportedBy.ContainsKey(lowerBrick))
+                        {
+                            brickSupportedBy[lowerBrick] = new();
+                        }
+
+                        brickSupports[lowerBrick].Add(higherBrick);
+                        brickSupportedBy[higherBrick].Add(lowerBrick);
+                    }
+                }
+            }
+
+            // Calculate which bricks can be safely removed
+            for (int i = 0; i < bricks.Count; i++)
+            {
+                var brick = bricks[i];
+                bool canBeRemoved = true;
+                var supportedBricks = brickSupports[brick];
+                Queue<Tuple<int, int, int, int, int, int>> bricksToCheck = new();
+                HashSet<Tuple<int, int, int, int, int, int>> fallingBricks = new() { brick }; // We include this brick itself because we're attempting to remove it
+
+                foreach (var supportedBrick in supportedBricks)
+                {
+                    if (brickSupportedBy[supportedBrick].Count == 1)
+                    {
+                        canBeRemoved = false;
+                        // For part 2 we need to check all the other bricks supported by this brick to see the chain reaction that's happening if we remove it
+                        bricksToCheck.Enqueue(supportedBrick);
+                    }
+                }
+
+                fallingBricks = fallingBricks.Concat(bricksToCheck).ToHashSet();
+
+                while (bricksToCheck.Count > 0)
+                {
+                    var brickToCheck = bricksToCheck.Dequeue();
+
+                    // We do an except here because all of the bricks we preciously marked as falling can no longer be a support
+                    supportedBricks = brickSupports[brickToCheck].Except(fallingBricks).ToHashSet();
+
+                    foreach (var supportedBrick in supportedBricks)
+                    {
+                        var remainingSupports = brickSupportedBy[supportedBrick].Except(fallingBricks).ToHashSet();
+                        if (remainingSupports.Count == 0)
+                        {
+                            bricksToCheck.Enqueue(supportedBrick);
+                            fallingBricks.Add(supportedBrick);
+                        }
+                    }
+                }
+
+                if (canBeRemoved)
+                {
+                    part1Output++;
+                }
+
+                part2Output += fallingBricks.Count - 1; // We subtract 1 from the count because the brick itself doesn't count as one of the other bricks caught in the chain reaction
+            }
+
+            return part != 2 ? part1Output : part2Output;
+        }
     }
 }

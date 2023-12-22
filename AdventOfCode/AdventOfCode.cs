@@ -2032,5 +2032,78 @@ namespace AdventOfCode
 
             return part == 2 ? part2Output : lowPulses * highPulses;
         }
+
+        public static BigInteger Day21(int part = 2)
+        {
+            var sr = new StreamReader("Day21-Input.txt");
+            var line = sr.ReadLine();
+            const char rock = '#';
+            int targetSteps = 64;
+            List<List<char>> grid = new();
+
+            while (line != null)
+            {
+                grid.Add(line.ToCharArray().ToList());
+
+                line = sr.ReadLine();
+            }
+
+            Tuple<int, int> start = Tuple.Create(0, 0);
+            for (int i = 0; i < grid.Count; i++)
+            {
+                for (int j = 0;  j < grid[i].Count; j++)
+                {
+                    if (grid[i][j] == 'S')
+                    {
+                        start = Tuple.Create(i, j);
+                        break;
+                    }
+                }
+            }
+
+            HashSet<Tuple<int, int>> visited = new()
+            {
+                Tuple.Create(start.Item1, start.Item2),
+            };
+            HashSet<Tuple<int, int>> validFinalSteps = new();
+            // Tuple is row, column, and number of steps
+            Queue<Tuple<int, int, BigInteger>> queue = new();
+            queue.Enqueue(Tuple.Create(start.Item1, start.Item2, BigInteger.Zero));
+            while (queue.Count > 0)
+            {
+                var current = queue.Dequeue();
+                var row = current.Item1;
+                var column = current.Item2;
+                var currentSteps = current.Item3;
+
+                if (currentSteps % 2 == targetSteps % 2)
+                {
+                    validFinalSteps.Add(Tuple.Create(row, column));
+                }
+
+                if (currentSteps == targetSteps)
+                {
+                    continue;
+                }
+
+                // Travel in each valid direction
+                foreach (GridDirection newDirection in Enum.GetValues(typeof(GridDirection)))
+                {
+                    if (newDirection == GridDirection.None) continue;
+                    var newRow = row + (newDirection == GridDirection.North ? -1 : newDirection == GridDirection.South ? 1 : 0);
+                    var newColumn = column + (newDirection == GridDirection.West ? -1 : newDirection == GridDirection.East ? 1 : 0);
+
+                    if (newRow < 0 || newColumn < 0 || newRow > grid.Count - 1 || newColumn > grid[newRow].Count - 1 || visited.Contains(Tuple.Create(newRow, newColumn)) || grid[newRow][newColumn] == rock)
+                    {
+                        continue;
+                    }
+
+                    visited.Add(Tuple.Create(newRow, newColumn));
+                    queue.Enqueue(Tuple.Create(newRow, newColumn, currentSteps + 1));
+                }
+            }
+
+            return validFinalSteps.Count;
+        }
     }
 }

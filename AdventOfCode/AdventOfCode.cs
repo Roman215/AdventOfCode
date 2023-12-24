@@ -2421,5 +2421,79 @@ namespace AdventOfCode
 
             return output;
         }
+
+        public static BigInteger Day24(int part = 2)
+        {
+            var sr = new StreamReader("Day24-Input.txt");
+            var line = sr.ReadLine();
+            BigInteger output = 0;
+            List<Tuple<decimal, decimal, decimal, decimal, decimal, decimal>> hailstones = new();
+            const decimal testAreaMin = 200000000000000;
+            const decimal testAreaMax = 400000000000000;
+
+            while (line != null)
+            {
+                var pos = line.Split(" @ ")[0].Split(", ").Select(x => Convert.ToDecimal(x)).ToList();
+                var velocity = line.Split(" @ ")[1].Split(", ").Select(x => Convert.ToDecimal(x)).ToList();
+
+                hailstones.Add(Tuple.Create(pos[0], pos[1], pos[2], velocity[0], velocity[1], velocity[2]));
+
+                line = sr.ReadLine();
+            }
+
+            // For velocity in general for a single hailstone, you have the equations x = v(x) * t + x0 and y = v(y) * t + y0. We want to solve those to get rid of t
+            // because we don't care if they collide at a specific time. This gives you a single equation with two variables (x and y).
+            // You have two equations if you use the two hailstones that you want to test for intersection. I have the actual solving in a notebook so I'm just using the final equation here
+            // for calculations
+
+            for (int i = 0; i < hailstones.Count; i++)
+            {
+                for (int j = i + 1; j < hailstones.Count; j++)
+                {
+                    var hailstone1 = hailstones[i];
+                    var hailstone2 = hailstones[j];
+                    var p1x = hailstone1.Item1;
+                    var p1y = hailstone1.Item2;
+                    var v1x = hailstone1.Item4;
+                    var v1y = hailstone1.Item5;
+                    var p2x = hailstone2.Item1;
+                    var p2y = hailstone2.Item2;
+                    var v2x = hailstone2.Item4;
+                    var v2y = hailstone2.Item5;
+                    var denominator = v1x * v2y - v2x * v1y;
+
+                    // denominator of 0 means they don't intersect or maybe that they intersect at every single point if they happen to be the same hailstone
+                    if (denominator == 0)
+                    {
+                        continue;
+                    }
+
+                    if (v1x == 0)
+                    {
+                        continue;
+                    }
+
+                    var intersectX = (v1x * v2x * p1y + v1x * v2y * p2x - v2x * v1y * p1x - v1x * v2x * p2y) / denominator;
+                    var intersectY = (v1y * intersectX - v1y * p1x) / v1x + p1y;
+
+                    // t1 and t2 are the points in time that the intersections happen relative to each hailstone. The times might be different because they don't necessarily have to collide at the same time
+                    var t1 = (intersectX - p1x) / v1x;
+                    var t2 = (intersectX - p2x) / v2x;
+
+                    // We only care about future intersections
+                    if (t1 < 0 || t2 < 0)
+                    {
+                        continue;
+                    }
+
+                    if (intersectX >= testAreaMin && intersectX <= testAreaMax && intersectY >= testAreaMin && intersectY <= testAreaMax)
+                    {
+                        output++;
+                    }
+                }
+            }
+
+            return output;
+        }
     }
 }

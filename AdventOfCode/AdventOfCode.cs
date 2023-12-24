@@ -1,5 +1,6 @@
 ﻿using System.Collections.Specialized;
 using System.Data;
+using System.Data.Common;
 using System.Numerics;
 using System.Text.RegularExpressions;
 
@@ -2247,6 +2248,178 @@ namespace AdventOfCode
             }
 
             return part != 2 ? part1Output : part2Output;
+        }
+
+        public static BigInteger Day23(int part = 2)
+        {
+            var sr = new StreamReader("Day23-Input.txt");
+            var line = sr.ReadLine();
+            List<List<char>> grid = new();
+            BigInteger output = 0;
+            const char pathTile = '.';
+            const char forestTile = '#';
+            const char northSlope = '^';
+            const char eastSlope = '>';
+            const char southSlope = 'v';
+            const char westSlope = '<';
+
+            bool firstLine = true;
+            Tuple<int, int> start = Tuple.Create(0, 0);
+            Tuple<int, int> end;
+
+            while (line != null)
+            {
+                if (firstLine)
+                {
+                    start = Tuple.Create(0, line.IndexOf(pathTile));
+                    firstLine = false;
+                }
+                grid.Add(line.ToList());
+
+                line = sr.ReadLine();
+            }
+
+            end = Tuple.Create(grid.Count - 1, grid[grid.Count - 1].IndexOf(pathTile));
+
+            // Because of the way the graph is formatted, we can convert our graph into something simpler with way fewer points.
+            // Important points keeps track of points that either are the start point, end point, or points which contain a branching point.
+            // Non branching points only have 1 valid destination they can go (since you can't backtrack), so if you calculate the distance between important points,
+            // you can create a graph where all the non branching points don't exist and greatly reduce the computational time
+            var importantPoints = new List<Tuple<int, int>>() { start, end };
+
+            for (int row = 0; row < grid.Count; row++)
+            {
+                for (int column = 0; column < grid[row].Count; column++)
+                {
+                    if (grid[row][column] == forestTile) continue;
+
+                    var numNeighbors = 0;
+                    var forcedSlopeDirection = GridDirection.None;
+                    if (part != 2)
+                    {
+                        if (grid[row][column] == northSlope) { forcedSlopeDirection = GridDirection.North; }
+                        if (grid[row][column] == southSlope) { forcedSlopeDirection = GridDirection.South; }
+                        if (grid[row][column] == eastSlope) { forcedSlopeDirection = GridDirection.East; }
+                        if (grid[row][column] == westSlope) { forcedSlopeDirection = GridDirection.West; }
+                    }
+
+                    if (forcedSlopeDirection != GridDirection.None) continue;
+
+                    foreach (GridDirection newDirection in Enum.GetValues(typeof(GridDirection)))
+                    {
+                        if (newDirection == GridDirection.None) continue;
+
+                        var newRow = row + (newDirection == GridDirection.North ? -1 : newDirection == GridDirection.South ? 1 : 0);
+                        var newColumn = column + (newDirection == GridDirection.West ? -1 : newDirection == GridDirection.East ? 1 : 0);
+
+                        if (newRow < 0 || newRow > grid.Count - 1 || newColumn < 0 || newColumn > grid[newRow].Count - 1 || grid[newRow][newColumn] == forestTile) continue;
+
+                        numNeighbors++;
+                    }
+
+                    if (numNeighbors > 2)
+                    {
+                        importantPoints.Add(Tuple.Create(row, column));
+                    }
+                }
+            }
+
+            // Now we create a new graph between the connected important points where the distance between them is the length of the non branching path between them
+            // Outer dictionary maps an important point to a list of other important points mapped to the distance between them
+            var graph = new Dictionary<Tuple<int, int>, Dictionary<Tuple<int, int>, BigInteger>>();
+            var encounteredPoints = new HashSet<Tuple<int, int>>();
+
+            // Travel through the original grid to populate our graph
+            for (int i = 0; i < importantPoints.Count; i++)
+            {
+                var currentPoint = importantPoints[i];
+                Queue<Tuple<int, int, BigInteger>> pathBeingTraveled = new();
+                pathBeingTraveled.Enqueue(Tuple.Create(currentPoint.Item1, currentPoint.Item2, BigInteger.Zero));
+                encounteredPoints.Clear();
+                encounteredPoints.Add(currentPoint);
+
+                while (pathBeingTraveled.Count > 0)
+                {
+                    var currentPathPoint = pathBeingTraveled.Dequeue();
+                    var row = currentPathPoint.Item1;
+                    var column = currentPathPoint.Item2;
+                    var currentPathPointKey = Tuple.Create(row, column);
+                    var distance = currentPathPoint.Item3;
+                    var forcedSlopeDirection = GridDirection.None;
+
+                    // If we ran into another important point, store the distance between both points in our graph
+                    if (distance != 0 && importantPoints.Contains(currentPathPointKey))
+                    {
+                        if (!graph.ContainsKey(currentPoint))
+                        {
+                            graph[currentPoint] = new();
+                        }
+
+                        graph[currentPoint][currentPathPointKey] = distance;
+                        continue;
+                    }
+
+                    if (part != 2)
+                    {
+                        if (grid[row][column] == northSlope) { forcedSlopeDirection = GridDirection.North; }
+                        if (grid[row][column] == southSlope) { forcedSlopeDirection = GridDirection.South; }
+                        if (grid[row][column] == eastSlope) { forcedSlopeDirection = GridDirection.East; }
+                        if (grid[row][column] == westSlope) { forcedSlopeDirection = GridDirection.West; }
+                    }
+
+                    // Travel along the grid path in each valid direction
+                    foreach (GridDirection newDirection in Enum.GetValues(typeof(GridDirection)))
+                    {
+                        if (newDirection == GridDirection.None) continue;
+
+                        var newRow = row + (newDirection == GridDirection.North ? -1 : newDirection == GridDirection.South ? 1 : 0);
+                        var newColumn = column + (newDirection == GridDirection.West ? -1 : newDirection == GridDirection.East ? 1 : 0);
+
+                        if (newRow < 0 || newRow > grid.Count - 1 || newColumn < 0 || newColumn > grid[newRow].Count - 1 || grid[newRow][newColumn] == forestTile || encounteredPoints.Contains(Tuple.Create(newRow, newColumn))) continue;
+                        if (forcedSlopeDirection != GridDirection.None && forcedSlopeDirection != newDirection) continue;
+
+                        pathBeingTraveled.Enqueue(Tuple.Create(newRow, newColumn, distance + 1));
+                        encounteredPoints.Add(Tuple.Create(newRow, newColumn));
+                    }
+                }
+            }
+
+            // Now do a depth first search to find the maximum distance between the start point and the end point
+            var pointsBeingTraveled = new PriorityQueue<Tuple<int, int, BigInteger, HashSet<Tuple<int, int>>>, BigInteger>();
+            pointsBeingTraveled.Enqueue(Tuple.Create(start.Item1, start.Item2, BigInteger.Zero, new HashSet<Tuple<int, int>>()), 0);
+
+            while (pointsBeingTraveled.Count > 0)
+            {
+                var currentPoint = pointsBeingTraveled.Dequeue();
+                var currentPointKey = Tuple.Create(currentPoint.Item1, currentPoint.Item2);
+                var distance = currentPoint.Item3;
+                encounteredPoints = currentPoint.Item4;
+
+                // If we reached the end point then check if we traveled further than our previous best, store the output, and finish this path
+                if (currentPoint.Item1 == end.Item1 && currentPoint.Item2 == end.Item2)
+                {
+                    if (output < currentPoint.Item3)
+                    {
+                        output = currentPoint.Item3;
+                    }
+
+                    continue;
+                }
+
+                var encounteredPointsCopy = encounteredPoints.ToArray().ToHashSet();
+                encounteredPointsCopy.Add(currentPointKey);
+
+                var connectedPoints = graph[currentPointKey];
+                foreach (var connectedPoint in connectedPoints)
+                {
+                    if (encounteredPointsCopy.Contains(connectedPoint.Key)) continue;
+
+                    var newDistance = distance + connectedPoint.Value;
+                    pointsBeingTraveled.Enqueue(Tuple.Create(connectedPoint.Key.Item1, connectedPoint.Key.Item2, newDistance, encounteredPointsCopy), 0 - newDistance);
+                }
+            }
+
+            return output;
         }
     }
 }

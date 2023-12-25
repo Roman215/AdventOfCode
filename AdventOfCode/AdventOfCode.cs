@@ -1,6 +1,5 @@
 ﻿using System.Collections.Specialized;
 using System.Data;
-using System.Data.Common;
 using System.Numerics;
 using System.Text.RegularExpressions;
 
@@ -2494,6 +2493,124 @@ namespace AdventOfCode
             }
 
             return output;
+        }
+
+        public static BigInteger Day25(int part = 2)
+        {
+            var sr = new StreamReader("Day25-Input.txt");
+            var line = sr.ReadLine();
+            Dictionary<string, HashSet<string>> components = new();
+            List<List<int>> adjacencyMatrix = new();
+            const int removedWires = 3;
+
+            // This minimum cut algorithm uses the Stoer-Wagner algorithm for finding the minimum cut of an undirected graph
+            // See (https://en.wikipedia.org/wiki/Stoer%E2%80%93Wagner_algorithm). The pseudocode from the wiki page was converted from C++ to C# to create this function
+
+            // Return value is a tuple where the first item is the length of the minimum cut, and the second item is a list of all the vertices in the best side of the cut
+            var performMinimumCut = () =>
+            {
+                var adjacencyMatrixCopy = new List<List<int>>();
+
+                for (int i = 0; i < adjacencyMatrix.Count; i++)
+                {
+                    adjacencyMatrixCopy.Add(adjacencyMatrix[i].ToArray().ToList());
+
+                }
+
+                Tuple<int, List<int>> bestCut = Tuple.Create(int.MaxValue, new List<int>());
+                int n = adjacencyMatrixCopy.Count();
+
+                List<List<int>> co = new();
+
+                for (int i = 0; i < n; i++)
+                {
+                    co.Add(new List<int> { i });
+                }
+
+                for (int phase = 1; phase < n; phase++)
+                {
+                    List<int> w = adjacencyMatrixCopy[0].ToArray().ToList();
+                    int s = 0, t = 0;
+
+                    for (int it = 0; it < n - phase; it++)
+                    {
+                        w[t] = int.MinValue;
+                        s = t;
+                        t = w.IndexOf(w.Max());
+                        for (int i = 0; i < n; i++) w[i] += adjacencyMatrixCopy[t][i];
+                    }
+
+                    var cutLength = w[t] - adjacencyMatrixCopy[t][t];
+                    var cutEdges = co[t];
+
+                    if (cutLength < bestCut.Item1)
+                    {
+                        bestCut = Tuple.Create(cutLength, cutEdges);
+
+                        // Preemptively cut our algorithm short if the bestCut is the count of removed wires because for our specific problem that means we found the cut we're looking for
+                        if (bestCut.Item1 == removedWires)
+                        {
+                            return bestCut;
+                        }
+                    }
+
+                    co[s] = co[s].Concat(co[t]).ToList();
+                    for (int i = 0; i < n; i++) adjacencyMatrixCopy[s][i] += adjacencyMatrixCopy[t][i];
+                    for (int i = 0; i < n; i++) adjacencyMatrixCopy[i][s] = adjacencyMatrixCopy[s][i];
+                    adjacencyMatrixCopy[0][t] = int.MinValue;
+                }
+
+                return bestCut;
+            };
+
+            while (line != null)
+            {
+                var key = line.Split(": ")[0];
+                var values = line.Split(": ")[1].Split(" ");
+
+                if (!components.ContainsKey(key))
+                {
+                    components[key] = new();
+                }
+
+                components[key] = components[key].Concat(values).ToHashSet();
+
+                foreach (var value in values)
+                {
+                    if (!components.ContainsKey(value))
+                    {
+                        components[value] = new();
+                    }
+
+                    components[value].Add(key);
+                }
+
+                line = sr.ReadLine();
+            }
+
+            // Build an adjacency matrix from our edges
+            foreach (var outerComponent in components)
+            {
+                adjacencyMatrix.Add(new List<int>());
+
+                foreach (var innerComponent in components)
+                {
+                    if (outerComponent.Value.Contains(innerComponent.Key))
+                    {
+                        adjacencyMatrix[adjacencyMatrix.Count - 1].Add(1);
+                    }
+                    else
+                    {
+                        adjacencyMatrix[adjacencyMatrix.Count - 1].Add(0);
+                    }
+                }
+            }
+
+            // Perform a minimum cut for our adjacency matrix. If the minimum cut equals the amount of removed wires we expect, we found the correct wires to remove
+            var bestCut = performMinimumCut();
+
+            // Because the second item of best cut is the largest subset of items resulting from our cut, we can just multiply that by the difference of the total amount of vertices
+            return bestCut.Item2.Count() * (components.Count - bestCut.Item2.Count());
         }
     }
 }
